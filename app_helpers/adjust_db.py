@@ -1,17 +1,11 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from Data.pipelines import grab_states_with_responses, delete_state_responses
 from core.imports.add_imports import grab_import_by_offset, delete_last_import
 
 
 def render_adjust_database_page():
-    """
-    Adjust Database – Delete Last Import (DB-backed if callables provided)
-
-    Args (optional):
-      fetch_last_import_fn: () -> dict|None
-      delete_last_import_fn: (import_id:int) -> {"success": bool, "message": str}
-    """
 
     # ---------- helpers ----------
     def _reload():
@@ -73,17 +67,6 @@ def render_adjust_database_page():
             )
             st.stop()
 
-        # Metrics row for the selected import
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            st.metric("Import ID", selected_import.get("import_id", "—"))
-        with m2:
-            st.metric("Inserted Rows", selected_import.get("inserted_rows", 0))
-        with m3:
-            st.metric("Type of import", selected_import.get("source_type", "—"))
-        with m4:
-            st.metric("State", selected_import.get("state", "—"))
-
         # Details
         with st.expander("🔎 View selected import details", expanded=True):
             st.dataframe(_record_to_df(selected_import), use_container_width=True, hide_index=True)
@@ -106,12 +89,88 @@ def render_adjust_database_page():
 
         if delete_clicked:
             try:
-                result = delete_last_import(selected_import.get("import_id"))
+                result = delete_last_import(selected_import.get("import_id"), selected_import.get("source_type"), selected_import.get("state"))
                 if isinstance(result, dict) and result.get("success"):
                     st.success(result.get("message", "Deleted selected import."))
-                    _reload()
                 else:
                     msg = (result or {}).get("message", "Failed to delete the selected import.")
                     st.error(msg)
             except Exception as e:
                 st.error(f"Error during deletion: {e}")
+    st.divider()
+
+         # ---------- section: delete all responses for a state ----------
+    with st.container(border=True):
+        st.markdown("### Delete A State's Responses")
+        st.caption("Delete all responses for a specific state. Your backend should perform the actual deletion/rollback.")
+
+        error_msg = None
+        states = []
+
+        try:
+            # Placeholder: should return something like
+            # [{"state_id": "24", "state_name": "Maryland"}, ...]
+            states = grab_states_with_responses()
+        except Exception as e:
+            error_msg = f"Failed to fetch states: {e}"
+
+        if error_msg:
+            st.error(error_msg)
+            st.stop()
+
+        if not states:
+            st.info("No states with responses were found.")
+            st.stop()
+
+        selected_state = st.selectbox(
+            "Choose a state to delete responses for",
+            options=states,
+            format_func=lambda s: f"{s.get('state_name', 'Unknown')} ({s.get('state_id', '—')})",
+            key="__adjdb__state_select",
+        )
+
+        state_id = selected_state.get("state_id")
+        state_name = selected_state.get("state_name", "Unknown")
+
+        with st.expander("🔎 View selected state details", expanded=True):
+            st.write(f"State: {state_name}")
+            st.write(f"State ID: {state_id}")
+            st.write(f"Number of responses: {selected_state.get('response_count', '—')}")
+
+        st.warning(f"This will permanently delete all responses for {state_name}.")
+
+        # Confirmation phrase
+        col_phrase, col_btn, _ = st.columns([0.5, 0.25, 0.25])
+        with col_phrase:
+            phrase = st.text_input(
+                f'Type **DELETE {state_name.upper()}** to confirm',
+                placeholder=f"DELETE {state_name.upper()}",
+                key="__adjdb__state_delete_phrase"
+            )
+
+        can_delete = phrase.strip().upper() == f"DELETE {state_name.upper()}"
+
+        with col_btn:
+            delete_clicked = st.button(
+                f"❌ Delete {state_name} Responses",
+                type="primary",
+                disabled=not can_delete,
+                help="Deletes all responses for the selected state.",
+                key="__adjdb__delete_state_btn"
+            )
+
+        if delete_clicked:
+            try:
+                # Placeholder function
+                result = delete_state_responses(state_id)
+
+                if isinstance(result, dict) and result.get("success") == True:
+                    st.success(result.get("message", f"Deleted all responses for {state_name}."))
+                else:
+                    msg = (result or {}).get(
+                        "message",
+                        f"Failed to delete responses for {state_name}."
+                    )
+                    st.error(msg)
+            except Exception as e:
+                st.error(f"Error during state response deletion: {e}")

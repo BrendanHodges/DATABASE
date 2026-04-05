@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 
-DB_PATH = r"C:\Users\hodge\Downloads\Voting_DB\MoVE.db"  # put the file next to this script or use an absolute path
+DB_PATH = r"C:\Users\Brend\Documents\DATABASE\MoVE.db"  # put the file next to this script or use an absolute path
 engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
 
 # Ensure SQLite enforces foreign keys

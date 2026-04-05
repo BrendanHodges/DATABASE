@@ -19,44 +19,6 @@ def strip_trailing_parenthetical(name: str) -> str:
     if not isinstance(name, str):
         return ""
     return re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
-
-# def clean_unatural_indexes(needs_cleaning):
-#     clean_abuse = {}
-#     cleaned_drive = {}
-
-#     abuse_map = {
-#         122: {"question": "Four or more voting rights violations in past 25 years", "score": 2},
-#         123: {"question": "One to three voting rights violations in past 25 years", "score": 1},
-#         124: {"question": "No history of voting rights violations in past 25 years", "score": 0},
-#     }
-
-#     for key, value in needs_cleaning.items():
-#         print(f"Cleaning index {key}: {value}")
-#         if not value:
-#             continue
-
-#         k = int(key)
-
-#         if k > 100:
-#             info = abuse_map.get(k)
-#             if info:  # only map known high indexes
-#                 link = value[2] if len(value) > 2 else None
-#                 clean_abuse[k] = [info["score"], info["question"], link]
-#         else:
-#             try:
-#                 score = int(str(value[0]).strip())
-#             except (IndexError, TypeError, ValueError):
-#                 score = 0
-#             definition = value[1] if len(value) > 1 else None
-#             link = value[2] if len(value) > 2 else None
-#             cleaned_drive[k] = [score, definition, link]
-
-#     if not clean_abuse and not cleaned_drive:
-#         clean_abuse[124] = [0, "No history of voting rights violations in past 25 years", None]
-
-#     combined = {**clean_abuse, **cleaned_drive}
-#     print(f" hello {combined}")
-#     return combined
         
 def clean_unatural_indexes(needs_cleaning, special_maps=None):
     clean_special = {}

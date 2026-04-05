@@ -100,6 +100,7 @@ def get_data_all_county(result):
 
 def get_MoVE_data_all_county(matched, key_word, question_map, county_id):
     idx = c.normalize_idx(question_map.values())
+    print(f"Fetching data for indexes: {idx} in county: {key_word}")
     if matched:
         ranges = [f"B{r}:D{r}" for r in idx]
         # Batch get all ranges at once
@@ -125,7 +126,7 @@ def get_MoVE_data_all_county(matched, key_word, question_map, county_id):
     final2 = final2.reset_index().rename(columns={'index': 'spreadsheet_idx'})
 
     final2['score'] = pd.to_numeric(final2['score'], errors='coerce')  # convert to numbers, NaN if bad
-    final2.loc[~final2['score'].isin([0, 1, 2]), 'score'] = 0
+    final2.loc[~final2['score'].isin([0, 1, 2]) & ~final2['spreadsheet_idx'].isin(remove), 'score'] = 0 
     final2['score'] = final2['score'].fillna(0).astype(int)
     
     return final2

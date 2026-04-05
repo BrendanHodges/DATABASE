@@ -7,20 +7,8 @@ from sqlalchemy import text
 import pandas as pd
 from core.MoVE.add_data import add_move_dataframe
 from core.imports.add_imports import add_imports_record, add_error_imports_record
-def admin_add_entity():
-    """
-    UI flow:
-      1) Choose entity: County or State or New Spreadsheet
-      2) Choose mode: Grab All or Grab specific questions
-      3) Show a form for the chosen combo, preview results, then Confirm & Add to DB
-    Returns:
-      dict with the submitted data, or None if not submitted yet.
-    """
-    import streamlit as st
-    import pandas as pd
-    from sqlalchemy import text
-    import Data.pipelines as p  # expects p.add_move_dataframe(result_dict, df) -> dict(success=True/False, message=..., error=...)
 
+def admin_add_entity():
     st.header("Extract and Upload MoVE Data")
     col1, col2 = st.columns(2)
     with col1:

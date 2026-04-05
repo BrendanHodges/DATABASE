@@ -117,14 +117,24 @@ def grab_import_by_offset(offset: int = 0):
         print(f"Error fetching import with offset {offset}: {e}")
         return None
         
-def delete_last_import(import_id):
+def delete_last_import(import_id, type, state):
+    print(type)
+    if type not in ["MoVE Data into responses table", "MoVE Spreadsheet ID"]:
+        return {"success": False, "message": "type not specified"}
+        
     with get_session() as s:
         try:
-            # First, nullify import_id in responses linked to this import
-            s.execute(text("""
-                DELETE FROM responses
-                WHERE import_id = :import_id
-            """), {"import_id": import_id})
+            if type == "MoVE Spreadsheet ID":
+                s.execute(text("""
+                    DELETE FROM sheet_ids
+                    WHERE state = :state
+                """), {"state": state})
+            
+            elif type == "MoVE Data into responses table":
+                s.execute(text("""
+                    DELETE FROM responses
+                    WHERE import_id = :import_id
+                """), {"import_id": import_id})
 
             # Then delete the import record itself
             s.execute(text("""
@@ -137,12 +147,3 @@ def delete_last_import(import_id):
         s.commit()
         return {"success": True, "message": f"Import {import_id} deleted successfully."}
     return True
-
-
-def delete_this():
-    with get_session() as s:
-        s.execute(text("DELETE FROM sheet_ids WHERE state = :state"), {"state": "Lousiana"})
-        s.commit()
-    return True
-
-delete_this()

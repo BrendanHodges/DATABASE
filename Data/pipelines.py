@@ -1,12 +1,11 @@
 
 import pandas as pd
 from Data.db import get_session
-from sqlalchemy import text
 import re
 from sqlalchemy import text, bindparam
 import re, unicodedata
 from difflib import SequenceMatcher
-from sqlalchemy import text
+
 
 def add_dataset():
     query = text("INSERT INTO census_datasets (dataset_ID, table_ID, title, survey, vintage, description) VALUES (:dataset_ID, :table_ID, :title, :survey, :vintage, :description);")
@@ -84,7 +83,7 @@ def _norm(s: str) -> str:
 def _score(a, b):  # tiny fuzzy
     return SequenceMatcher(None, a, b).ratio()
 
-def get_county_id(county_name: str, state: str, threshold: float = 0.90):
+def get_county_id(county_name: str, state: str, threshold: float = 0.7):
     # add "County" unless it looks like a city name
     if not re.search(r"\bcounty\b", county_name, re.I) and not re.search(r"\bcity\b", county_name, re.I):
         county_name += " County"
@@ -129,45 +128,75 @@ def get_sheet_id(state):
     return Sheet_id
 
 ##########################################################################################################################################
-
-
-#INSERT DATA INTO RESPONSES TABLE RETURN DUPLICATE ANSWERS TO QUESTIONS
 def bulk_insert_with_dupe_report(df):
     records = df.to_dict(orient="records")
     if not records:
         return []
 
-    with get_session() as conn:
-        # 1) Stage rows in a temp table (dedupes within df)
-        conn.execute(text("""
+    # Normalize + filter bad county_id so we never hit the CHECK constraint
+    cleaned = []
+    for r in records:
+        cid = r.get("county_id")
+        if cid is None:
+            continue
+
+        cid_str = str(cid).strip()
+
+        # If it's something like 1001.0 from pandas, clean it
+        if cid_str.endswith(".0"):
+            cid_str = cid_str[:-2]
+
+        if not cid_str.isdigit():
+            continue
+
+        cid_str = cid_str.zfill(5)
+
+        # Enforce exact length 5 to satisfy CHECK constraint
+        if len(cid_str) != 5:
+            continue
+
+        r["county_id"] = cid_str
+        cleaned.append(r)
+
+    if not cleaned:
+        return []
+
+    with get_session() as s:
+        # IMPORTANT: s is a SQLAlchemy ORM Session
+        # DDL for temp tables is best sent via driver SQL on the session's connection.
+        s.connection().exec_driver_sql("""
             CREATE TEMP TABLE IF NOT EXISTS tmp_new (
-                county_id   INTEGER NOT NULL,
+                county_id   TEXT NOT NULL,
                 question_id INTEGER NOT NULL,
                 definition  TEXT,
                 link        TEXT,
                 value       INTEGER,
                 PRIMARY KEY (county_id, question_id)
             )
-        """))
-        conn.execute(text("DELETE FROM tmp_new"))
-        conn.execute(text("""
-            INSERT OR IGNORE INTO tmp_new (county_id, question_id, definition, link, value)
-            VALUES (:county_id, :question_id, :definition, :link, :value)
-        """), records)
+        """)
+        s.connection().exec_driver_sql("DELETE FROM tmp_new")
 
-        # 2) Pairs that already exist in responses
-        dup_pairs = [
-            (c, q) for (c, q) in conn.execute(text("""
-                SELECT t.county_id, t.question_id
-                FROM tmp_new t
-                INNER JOIN responses r
-                  ON r.county_id = t.county_id AND r.question_id = t.question_id
-            """)).fetchall()
-        ]
+        # SQLAlchemy "executemany": pass list of dicts as params
+        s.execute(
+            text("""
+                INSERT OR IGNORE INTO tmp_new (county_id, question_id, definition, link, value)
+                VALUES (:county_id, :question_id, :definition, :link, :value)
+            """),
+            cleaned
+        )
 
-        # 3) Insert only new rows, with safety check for value
-        #    Coerce to int and keep only {0,1,2}; else 0
-        conn.execute(text("""
+        # Duplicate pairs already in responses
+        dup_pairs = s.execute(text("""
+            SELECT t.county_id, t.question_id
+            FROM tmp_new t
+            INNER JOIN responses r
+              ON r.county_id = t.county_id
+             AND r.question_id = t.question_id
+        """)).all()
+        dup_pairs = [(c, q) for (c, q) in dup_pairs]
+
+        # Insert only new rows (and coerce values to valid ranges per question)
+        s.execute(text("""
             INSERT INTO responses (county_id, question_id, definition, link, value)
             SELECT
                 t.county_id,
@@ -175,16 +204,23 @@ def bulk_insert_with_dupe_report(df):
                 t.definition,
                 t.link,
                 CASE
-                  WHEN CAST(t.value AS INTEGER) IN (0,1,2) THEN CAST(t.value AS INTEGER)
+                  WHEN t.question_id = 32 AND t.value IN (0,1,2,3,4,5) THEN t.value
+                  WHEN t.question_id IN (33,10) AND t.value IN (0,1,2) THEN t.value
+                  WHEN t.question_id NOT IN (32,33,10) AND t.value IN (0,1) THEN t.value
                   ELSE 0
                 END AS value
             FROM tmp_new t
             LEFT JOIN responses r
-              ON r.county_id = t.county_id AND r.question_id = t.question_id
+              ON r.county_id = t.county_id
+             AND r.question_id = t.question_id
             WHERE r.county_id IS NULL
         """))
 
+        # no explicit commit here; get_session() commits on exit
+
     return dup_pairs
+
+
 
 ###############################################################FINAL DATA FETCHING##########################################################################
 def grab_variables():
@@ -340,3 +376,60 @@ def add_new_data():
     with get_session() as engine:
         cur = engine.connection()
         df_to_insert.to_sql("census_facts", cur, if_exists="append", index=False, method="multi")  
+
+def grab_states_with_responses():
+    query = text("""
+        SELECT DISTINCT s.name, s.state_ID, COUNT(*) AS response_count
+        FROM states s
+        JOIN counties c ON c.state_ID = s.state_ID
+        JOIN responses r ON r.county_id = c.County_id
+        GROUP BY s.state_ID
+    """)
+    with get_session() as s:
+        rows = s.execute(query).fetchall()
+    return [{"state_name": row[0], "state_id": row[1], "response_count": row[2]} for row in rows]
+
+def delete_state_responses(state_id):
+    query = text("""
+        DELETE FROM responses
+        WHERE county_id IN (
+            SELECT county_id FROM counties WHERE state_id = :state_id
+        )
+    """)
+    try:
+        with get_session() as s:
+            result = s.execute(query, {"state_id": state_id})
+            s.commit()
+        return {
+            "success": True,
+            "message": f"Deleted responses for state {state_id}.",
+            "rows_deleted": result.rowcount
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error deleting responses for state {state_id}: {e}"
+        }
+    
+def response_stats():
+    query = text("""
+        SELECT 
+            COUNT(DISTINCT r.county_id) AS counties_with_responses,
+            COUNT(DISTINCT r.question_id) AS questions_with_responses,
+            COUNT(*) AS total_responses,
+             GROUP_CONCAT(DISTINCT q.category) AS move_categories,
+            COUNT (DISTINCT q.category) AS category_count
+        FROM responses r
+        JOIN questions q ON q.question_id = r.question_id
+        WHERE r.question_id != 10
+    """)
+    with get_session() as s:
+        rows = s.execute(query).fetchall()
+    return {
+    "total_counties": rows[0][0],
+    "total_questions": rows[0][1],
+    "total_responses": rows[0][2],
+    "categories":rows[0][3],
+    "total_categories": rows[0][4]
+}

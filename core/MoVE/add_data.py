@@ -33,7 +33,7 @@ def add_move_dataframe(df, results):
 
     # Optional: drop rows with null ids early
     df = df.dropna(subset=['county_id', 'question_id'])
-
+    print("HERRR:", df)
     # 2) Insert and get duplicates (must be List[Tuple[int,int]])
     duplicates = p.bulk_insert_with_dupe_report(df)  # ensure this returns [(county_id, question_id), ...]
     print(duplicates)
