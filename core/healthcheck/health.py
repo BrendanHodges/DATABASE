@@ -59,7 +59,7 @@ def counties_for_states():
                     FROM responses
                 )
                 SELECT 
-                    c.state_id,
+                    c.state_id, c.state,
                     COUNT(*) AS missing_counties
                 FROM counties c
                 JOIN response_states rs

@@ -4,7 +4,6 @@ from core.MoVE.add_sheet import add_sheet_metadata
 from Data.db import get_session
 import pandas as pd
 from sqlalchemy import text
-import pandas as pd
 from core.MoVE.add_data import add_move_dataframe
 from core.imports.add_imports import add_imports_record, add_error_imports_record
 

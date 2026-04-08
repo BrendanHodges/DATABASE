@@ -1,0 +1,6 @@
+numpy
+sqlalchemy
+gspread
+difflib
+contextlib
+pydantic

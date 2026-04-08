@@ -2,8 +2,6 @@ import pandas as pd
 from Data.db import get_session
 from config.settings import Settings
 from sqlalchemy import text
-import re
-import time
 import streamlit as st
 from Data import pipelines as p
 from core.cleaners import cleaners as c 

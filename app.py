@@ -116,7 +116,7 @@ if page == "Health and Data Summary's":
             st.warning(f"{len(results['every_county_in_state'])} states with missing counties in response table found.")
             for row in results["every_county_in_state"]:
                 st.write(
-                    f"State {row._mapping['state_id']} ({row._mapping['state_abbrev']}) "
+                    f"State {row._mapping['state']}"
                     f"-> Missing counties: {row._mapping['missing_counties']}"
                 )
     st.divider()
