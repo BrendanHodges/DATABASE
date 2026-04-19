@@ -1,6 +1,5 @@
 numpy
 sqlalchemy
 gspread
-difflib
-contextlib
+pandas
 pydantic

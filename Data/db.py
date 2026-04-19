@@ -3,13 +3,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from config.settings import settings
 
 # First try the server environment variable
-DB_PATH = os.getenv("MOVE_DB_PATH")
-
+DB_PATH = settings.MOVE_DB_PATH
+print(DB_PATH)
 # Fallback for local development if env var is not set
-if not DB_PATH:
-    DB_PATH = r"C:\Users\Brend\Documents\DATABASE\MoVE - Safe.db"
 
 engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
 
