@@ -77,7 +77,7 @@ def counties_missing_questions():
     with get_session() as conn:
         query = """
                 WITH expected_questions AS (
-                    SELECT question_id FROM questions
+                    SELECT question_id, question FROM questions
                 ),
                 county_base AS (
                     SELECT DISTINCT county_id FROM responses
@@ -86,7 +86,7 @@ def counties_missing_questions():
                     c.name,
                     c.state_id,
                     c.county_id,
-                    GROUP_CONCAT(q.question_id, ', ') AS missing_questions
+                    GROUP_CONCAT(q.question, ', ') AS missing_questions
                 FROM county_base cb
                 CROSS JOIN expected_questions q
                 LEFT JOIN responses r

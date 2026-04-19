@@ -1,9 +1,16 @@
-# db.py
+import os
 from contextlib import contextmanager
-from sqlalchemy import create_engine, event, text
+from pathlib import Path
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-DB_PATH = r"C:\Users\Brend\Documents\DATABASE\MoVE.db"  # put the file next to this script or use an absolute path
+# First try the server environment variable
+DB_PATH = os.getenv("MOVE_DB_PATH")
+
+# Fallback for local development if env var is not set
+if not DB_PATH:
+    DB_PATH = r"C:\Users\Brend\Documents\DATABASE\MoVE - Safe.db"
+
 engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
 
 # Ensure SQLite enforces foreign keys
